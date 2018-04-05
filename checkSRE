@@ -1,0 +1,124 @@
+#!/bin/bash
+
+
+#  checkSRE - Checks status of SRE server, and restarts if it's down.
+#
+#
+#	checkSRE- <host> <Check Interval>
+#  
+
+# Check parameters
+
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "Usage: `basename $0` < host > [ Check Interval ]"
+   exit $E_ARGERROR
+fi
+
+host=$1
+
+if [ -z $2 ]
+then
+	int=100
+else
+	int=$2		
+fi
+
+touch sre_Status
+ecko "wget -O sre_Status http://"$host":8080/sreserver/diag" > /dev/null
+cat sre_Status | grep successfully
+
+
+date=`date`
+printf "
+$date: Checking at interval of $int seconds
+"
+es=0
+set x 1
+while  $x  
+do 
+	if [ -z $es1 ]
+	then
+		wget -O  sre_Status http://"$host":8080/sreserver/diag 2> /dev/null
+#		wget -O sre_Status http://"$host":8080/sreserver/diag/test?type=EPDB 2> /dev/null
+#		ecko "cat sre_Status | grep OK" ""$host":CHECK_SRE" "Verify SRE Diag Page is Available." > /dev/null
+		ecko "cat sre_Status | grep successfully" ""$host":CHECK_SRE" "Verify SRE Diag Page is Available." > /dev/null
+		es=$?
+	else	
+		wget -O sre_Status http://"$host":8080/sreserver/diag 2> /dev/null
+#		wget -O  sre_Status http://"$host":8080/sreserver/diag/test?type=EPDB 2> /dev/null
+		ecko "cat sre_Status | grep successfully " ""$host":CHECK_SRE" "Verify SRE Diag Page is Available."
+            	es=$?
+	fi
+
+	unset es1
+#      printf "ES =$es"
+	if [ $es = 0  ] 
+	then	
+		sleep $int
+	else 
+		date=`date`
+            	printf "
+SUMMARY: SRE SERVER $host IS DOWN!!!!   $date"
+		echo "Alerting and restarting server"
+		string="CRITICAL SRE on $host has been restarted at $date"
+		ecko "ssh dns1 echo $string | mail -s CRITICAL_HUNG_SRE_$host jpavia@epnet.com"
+            	ecko "/usr/local/scripts/ex_cmd_nagios_disable.sh "$host""  "NAGIOS" "Disable All Alerts for $host"
+		sleep 2
+		if [ -z "${host##*srel*}" ]    
+		then
+			if [ -z "${host##pdc*}" ]
+                	then
+                        	datacenter=pdc
+                	elif   [ -z "${host##sdc*}" ]
+                	then
+                        	datacenter=sdc
+                	fi
+						
+			ecko "ssh -t -i ~/.ssh/"$datacenter"-search.pem cloud-user@"$host" sudo systemctl stop SRE.service" "STOP SRE" "Attempt to Stop SRE Service"  
+			sleep 2
+			ecko "ssh -t -i ~/.ssh/"$datacenter"-search.pem cloud-user@"$host" sudo pkill -9 java" "KILLALL JAVA" "Attempt to kill any wedged SRE instance" # 2> /dev/null
+			sleep 2
+			ecko "ssh  -t -i ~/.ssh/"$datacenter"-search.pem cloud-user@"$host" sudo systemctl start SRE.service"  ""$host":START SRE" "Attempt to Start SRE Service" 
+			es1="$?"
+			ecko "sleep 19"
+		else
+			ecko "ssh $host sudo service tomcat_sre stop" "STOP SRE" "Attempt to Stop SRE Service"
+			sleep 2
+			ecko "ssh $host sudo killall java " "KILLALL JAVA" "Attempt to kill any wedged SRE instance" # 2> /dev/null
+			sleep 2
+			ecko "ssh $host sudo service tomcat_sre start"  ""$host":START SRE" "Attempt to Start SRE Service" 
+			es1="$?"
+			ecko "sleep 15"
+		fi
+		ecko "/usr/local/nagios/libexec/check_http -H $host -p 8080 -u /sreserver/diag/test -R '^OK' " "NAGIOS" "Verify if Nagios check is passing"
+		ecko "ssh xi101 /usr/local/nagios/libexec/check_dssre "$host"" "NAGIOS" "Verify if Nagios check_dssre is passing"
+#		ecko "checkSRE $host  $int" "CHECK_SRE" "$date : Checking SRE Is Up on $host"
+		es1=`expr "$es1" + "$?"`	
+		if [ ! $es1 = 0  ]
+		then
+			printf "SUMMARY: Restart failed, exiting
+.
+.
+.
+"
+			echo "Alerting NOC"
+                	string="CRITICAL SRE restart failed on $host"
+                	ecko "ssh dns1 echo $string | mail -s CRITICAL_SRE_Restart_Failed_$host jpavia@epnet.com"
+			ecko "/usr/local/scripts/ex_cmd_nagios_enable.sh $host" "NAGIOS" "$date : Enable All Alerts for $host"
+			sleep 2
+			ecko "checkSRE $host $int" "CHECK_SRE" "$date : 1Checking SRE Is Up on $host"
+			exit $es1
+		else
+			ecko "/usr/local/scripts/ex_cmd_nagios_enable.sh $host" "NAGIOS" "$date : Enable All Alerts for $host"
+                	sleep  2
+		fi	
+		ecko "checkSRE $host $int " "CHECK_SRE" "$date : 2Checking SRE Is Up on $host"
+		exit
+	fi
+done

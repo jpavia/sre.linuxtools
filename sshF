@@ -1,0 +1,53 @@
+#/bin/bash
+
+#  sshF- facilitates remote execution 
+#  
+#	sshF <host> <username> <Executable String> <password>
+#
+# 	If 2 parameters passsed, use current user for login and prompt for password
+# 	If 3 parameters passed, use specified username and prompt for password
+# 	If 4 parameters passed, execute hands-off
+# 	
+
+# Check parameters
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "Usage: `basename $0` <host> <Executable> [username] [password]
+#  sshF- facilitates remote execution 
+#
+# 	If 2 parameters passsed, use current user for login and prompt for password
+# 	If 3 parameters passed, use specified username and prompt for password
+# 	If 4 parameters passed, execute hands-off
+# 
+"
+   exit $E_ARGERROR
+fi
+
+# If 4 parameters passed, execute hands-off
+
+if [ ! -z $4 ] 
+then 
+#  ecko "passwd.exp ssh -f $3@$1 $2" 
+#   ecko "ssh.exp  $1 $2 $3 $4"
+echo "
+"
+   ssh.exp  $1 $2 $3 $4
+   exit $?
+# If 3 parameters passed, use specified username and prompt for password
+elif [ ! -z $3 ]
+then
+   ecko "ssh -o \"StrictHostKeyChecking no\" -f $3@$1 $2 "
+   exit $?
+fi
+# Otherwise, use current user for login and prompt for password
+ecko "ssh -o \"StrictHostKeyChecking no\" -f $1 $2"
+echo "
+"
+exit $?
+
+

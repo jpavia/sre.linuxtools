@@ -1,0 +1,42 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "
+Usage: `basename $0` <host1> [host2] [host3] . . . 
+
+`basename $0` - checks for busiest process on specified servers 
+
+Example:
+     adm104:~> basename $0 sdc-p-lids03 sdc-p-lids04 ....
+
+Pre-requisites:
+
+~/bin/Results must exist.
+"
+   exit $E_ARGERROR
+fi
+
+#Get unique timestamped tag
+
+date=`date +%F_%R:%N`
+
+#Make directory for results
+
+ecko "mkdir ~/bin/Results/busyds_$date"
+ecko "rm ~/bin/Results/latest_busyDS"
+ecko "ln -s ~/bin/Results/busyds_$date ~/bin/Results/latest_busyDS"
+
+#Run busyDS for all hosts, each writing to it's own log file
+#Remove grep Busiest for verbose logging
+
+for host in $*
+do
+	ecko "busyDS $host > ~/bin/Results/busyds_$date/$date_busyds_$host.log &"
+	sleep .5  
+done
+

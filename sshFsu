@@ -1,0 +1,63 @@
+#!/usr/bin/expect -f
+
+# sshFsu - facilitates password entry via ssh for remote execution
+#  
+#	sshFsu <host> <executable> <username> <password> <root password> [string to expect]
+#  
+
+# Check parameters
+set E_ARGERROR 85
+set MINPARAMS 4
+
+if { $argc < $MINPARAMS} {
+   puts "!ERROR! Not enough parameters"
+   puts "Usage: `basename $0` <host> <executable> <username> <password> <root password> <string to expect>"
+   exit $E_ARGERROR
+}
+
+set force_conservative 1 
+set timeout 15 
+match_max 100000
+
+#puts [lindex $argv 1]
+
+# Get full path to ssh
+
+set ex [exec which ssh]
+#set cmd [exec which [lindex $argv 1]]
+puts "EXECUTING  [lindex $argv 1] on [lindex $argv 0] as [lindex $argv 2]"
+spawn /bin/bash
+
+# Login to server
+
+set string "$ex  [lindex $argv 2]@[lindex $argv 0] " 
+send -- "$string\r"
+sleep 1
+expect -- "assword:"
+send -- "[lindex $argv 3]\r"
+expect -- "\r"
+sleep 1
+
+# su to root on remote server
+
+send -- "su\r"
+sleep 1
+expect -- "assword:"
+sleep 1
+send -- "[lindex $argv 4]\r"
+expect -- "\r"
+sleep 1
+
+# Execute specified command
+
+send -- "[lindex $argv 1]\r"
+
+puts [lindex $argv 5]
+
+
+# Verify command was successful - work in progress
+
+#expect -- "Complete!"
+#expect -- "[lindex $argv 5]"
+
+expect eof

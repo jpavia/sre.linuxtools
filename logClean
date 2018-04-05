@@ -1,0 +1,164 @@
+#!/bin/bash
+
+
+#  logClean - Cleans logs from specified servers
+#
+#
+#	logClean - [interval] <hosts> 
+#  
+
+# Check parameters
+
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ "$#" -lt "$MINPARAMS"  ]
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "logClean - Cleans logs from specified servers"
+   echo "Usage: `basename $0` [Optional retry Interval in Hours] < hosts > "
+   exit $E_ARGERROR
+fi
+
+if [[ "$1" =~ "^[0-9]+$" ]]
+then 
+	interval=$1
+	shift
+fi
+
+hosts=$*
+date=`date`
+set `date`
+year=`date +%Y`
+logdate=`date +%F_%R:%N`
+#echo $year
+lastyear=$year
+let lastyear-=1
+tya=$lastyear
+let tya-=1
+month=`date +%m`
+
+for host in $hosts
+do
+
+# Standard cleanup for all hosts
+
+#	echo $host $month $year $lastyear $tya
+	remoteExec $host "df -h" "ls -lh /var/log/ /tmp" "du -h --max-depth=1 /var/log/" "du -h --max-depth=1 /tmp"
+	pdsh -w $host "find /var/log/*.bz2 -maxdepth 1 -mtime +90 -type f  -delete -print"
+	checkStatus "$?" "logClean"  "Executing find /var/log/*.bz2 -maxdepth 1 -mtime +90 -type f  -delete -print on "$host""
+ 
+# Determine if host is one of the supported services
+
+ 	if [ -z "${host##*cachesvc*}" ] 
+	then
+		service="Cache Service"
+		path="/EP/epcacheserver/data/glassfish/domains/epcache"
+	fi
+	if [ -z "${host##*rps2*}" ]
+        then
+		service="RPSv2"
+		path="/usr/local/rpsserver/data/glassfish/domains/rps*"
+	fi
+	if [ -z "${host##*rpss*}" ]
+        then
+		service="RPSv1"
+		path="/usr/local/glassfish/domains/*"
+	fi
+	if  [ -z "${host##*cds*}" ]
+        then
+		service="CDS"
+		path="/EP/cdsserver/data/glassfish/domains/cds"
+	fi
+	if  [ -z "${host##*sts*}" ]
+        then
+		service="STS"
+		path="/EP/stsserver/data/glassfish/domains/sts"
+	fi
+	if  [ -z "${host##*tre*}" ]
+        then
+		service="TRE"
+		path="/usr/local/treserver/data/glassfish/domains/tre"
+	fi
+
+# Specialized cleanup for non-glassfish services
+	if  [ -z "${host##*wsrsvc*}" ]
+        then
+		service="WSR"
+		path="/usr/java/tomcat"
+		echo "Host $host is a $service Server"
+		remoteExec "$host" "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " 
+		remoteExec $host "find "$path"/logs/catalina.*.log -maxdepth 1 -mtime +90 -type f -delete -print"
+		ecko "pdsh -w $host find "$path"/logs/*.log.* -maxdepth 1 -mtime +90 -type f -delete -print"
+		ecko "pdsh -w $host find "$path"/logs/localhost_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print"  
+		ecko "pdsh -w $host find "$path"/logs/*.* -maxdepth 1 -mtime +365 -type f -delete -print"
+		remoteExec "$host" "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " 
+		pdsh -w $host "echo \"\" > /usr/java/tomcat/logs/catalina.out"
+		remoteExec $host "du -h --max-depth=1  "$path"/logs/* | grep catalina.out"
+		unset service
+	fi
+	if  [ -z "${host##widgets*}" ]
+        then
+		service="Widgets"
+		path="/var/log/apache2"
+		echo "Host $host is a $service Server"
+		remoteExec $host "ls -lh "$path" " "du -h --max-depth=1 "$path" "
+		ecko "/usr/local/scripts/ex_cmd_nagios_disable.sh "$host".sdn.ebscopub.com"  "NAGIOS" "Disable All Alerts for $host"
+		remoteExec $host "./apache-backup-script" 
+		remoteExec $host "find /tmp -maxdepth 1 -mtime +1 -type f -user wwwrun -delete  -print" 
+		remoteExec $host "/usr/local/apache2/bin/apachectl start"
+		ecko "/usr/local/nagios/libexec/check_http -I $host -u '/test.html' –s 'OK' " "NAGIOS" "Verify if Nagios check is passing"
+		es=$?
+		if [ ! $es = 0  ]
+		then
+			printf "SUMMARY: Restart failed, exiting
+.
+.
+.
+"
+			echo "Alerting SRE"
+                	string="CRITICAL Widgets restart failed on $host"
+                	ecko "ssh dns1 echo $string | mail -s CRITICAL_Widget_Restart_Failed_$host jpavia@epnet.com pmahajan@epnet.com sbarry@epnet.com tarchibald@epnet.com nnadig@epnet.com afassio@epnet.com bmitchell@epnet.com sdumpala@epnet.com ccooper@ebsco.com cbarone@ebsco.com j.bailey@ebsco.com "
+			ecko "/usr/local/scripts/ex_cmd_nagios_enable.sh $host" "NAGIOS" "$date : Enable All Alerts for $host"
+			sleep 2
+#			exit $es
+		else
+			ecko "/usr/local/scripts/ex_cmd_nagios_enable.sh $host" "NAGIOS" "$date : Enable All Alerts for $host"
+                	sleep  2
+		fi	
+
+
+		ecko "/usr/local/scripts/ex_cmd_nagios_enable.sh "$host".sdn.ebscopub.com"  "NAGIOS" "Enable All Alerts for $host"
+		remoteExec $host "du -h --max-depth=1 "$path""
+		unset service
+	fi
+
+# Standard Cleanup for Glassfish Services
+	if [ ! -z "$service" ]
+	then
+		echo "Host $host is a $service Server"
+		remoteExec $host "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " "du -h --max-depth=1  "$path"/logs/access/* " 
+		ecko "ssh $host \"find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +90 -type f  -delete -print\""
+		checkStatus "$?" "logClean"  "find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +90 -print -type f  -delete  -print on \"$host\""
+		remoteExec $host "find "$path"/logs/*_0* -maxdepth 1 -mtime +90 -type f  -delete -print" 2>/dev/null
+		remoteExec $host "ls -lh "$path"/logs/access" 2>/dev/null
+		remoteExec $host "find \"$path\"/logs/access/__asadmin_access_log.* -maxdepth 1 -mtime +7 -type f  -delete -print" 2>/dev/null
+   		remoteExec $host "find \"$path\"/logs/access/server_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print" 2>/dev/null
+        	remoteExec $host "find "$path"/logs/* -maxdepth 1 -mtime +365 -type f  -delete -print " 2>/dev/null
+		remoteExec $host "ls -lh \"$path\"/logs/access" 2>/dev/null
+		remoteExec $host "du -h --max-depth=1  \"$path\"/logs/* | grep M " 2>/dev/null
+		remoteExec $host "du -h --max-depth=1  \"$path\"/logs/* | grep G " 2>/dev/null
+	fi
+done
+
+# Re-run at specified interval
+
+if [ ! -z "$interval" ]
+then
+	ecko "sleep "$interval"h"
+	ecko "logClean $interval $hosts &" 
+	
+fi 
+
+exit $es

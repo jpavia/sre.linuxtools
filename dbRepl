@@ -1,0 +1,47 @@
+#/bin/bash
+
+
+E_ARGERROR=85
+MINPARAMS=3
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+	   echo "Usage: `basename $0`  <domain> <host> <db1> [db2] . . . 
+Usage:
+dbRepl -  replicates via PCS to replicas
+
+PreRequisites: only runs on adm104, which must have ssh access to the specified server
+
+dbRepl <domain> <host> <db1> [db2] . . .  
+  
+Parameter            Value
+
+host          Hostname of Server to check
+
+
+
+Example: dbRepl ir ae-prod-primary101 ir00333a ir00335a
+
+"
+   exit $E_ARGERROR
+fi
+
+# Read in parameters
+
+domain=$1
+shift
+host=$1
+shift
+#domain=`ssh jpavia@ae-prod-primary103 /usr/home/epdev/jpavia/bin/getSourceDomain prod-pcs102 $db`
+echo $domain
+
+for db in $* 
+do 
+	echo "$#" "$db"
+	#domain=`ssh jpavia@ae-prod-primary103 /usr/home/epdev/jpavia/bin/getSourceDomain prod-pcs102 $db`
+	domain=catalog
+	echo $domain
+	ecko "ssh $host /usr/home/epdev/pcsuser21/data/pcssandbox/pcsclient/bin/replicateVersion --domain $domain --host prod-pcs --port 28080 -l live  --priority HIGH -g $db " "Replicate" "Replicate  $db on $host" 
+	sleep 1
+done

@@ -1,0 +1,52 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "
+Usage: `basename $0` <host1> <db1> [host2] [db2] . . . 
+
+`basename $0` - checks state of DSE Pool 
+
+Example:
+     adm104:~> basename $0 sdc-p-lidsdse13 nlebk sdc-p-lidsdse16 gpd ....
+
+Pre-requisites:
+
+~/bin/Results must exist.
+"
+   exit $E_ARGERROR
+fi
+
+#Get unique timestamped tag
+
+date=`date +%F_%R:%N`
+
+#Make directory for results
+
+ecko "touch ~/bin/Results/dseState_$date" 
+ecko "rm ~/bin/Results/latest_dseState"  > /dev/null
+ecko "ln -s ~/bin/Results/dseState_$date ~/bin/Results/latest_dseState"  > /dev/null
+
+echo "SUMMARY: Executing $*  "  >> ~/bin/Results/dseState_$date
+echo "SUMMARY: Executing $*  " 
+
+while [ $# -gt 1  ]
+do
+	host=$1
+#	echo "host=$host"
+        shift
+        db=$1
+#       echo "db=$db"
+        shift
+	ecko "dseState $host $db 
+" >> ~/bin/Results/dseState_$date
+done
+
+ecko "grep SUMMARY ~/bin/Results/dseState_$date"
+echo "Executing grep FAILED"
+grep FAILED ~/bin/Results/dseState_$date
+

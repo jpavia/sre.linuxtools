@@ -1,0 +1,104 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=4
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+   echo "Usage: `basename $0`  <SourceFile> <restartNRPE/norestartNRPE> <host1 [host2] [host3] ...> <DestPath> [addlCommand] [addlCommand] ...
+Usage:
+pushFile - push specified file to each specified server, restarts NRPE if specified and execute any additional commands
+
+PreRequisites: only runs on adm104, which must have ssh access to the specified server
+
+pushFile <SourceFile> <restartNRPE/norestartNRPE> <host1 host2 host3> <DestPath> [addlCommand] [addlCommand] ...
+  
+Parameter            Value
+
+SourceFile    Absolute path to source file, can be remote
+restartNRPE   Whether to restart nrpe on remote hosts, any value but restartNRPE is considered a no-op.
+Host          Hostname(s) of Server to check, supports pdsh syntax i.e. \"rpss[1,2,102,4001],cds[1,2,101,4001]\"
+DestPath      Absolute path to push file to
+addlCommand   Other commands to be run on remote hosts
+
+
+Example: pushFile  ~/bin/check_ds_count.sh\" restartNRPE \"lids101 lids102\" /usr/local/nagios/libexec/nagiosxi  \"ls /etc\" \"pwd\" 
+
+Remote Example: pushFile  pdc-p-lids10:/bin/check_ds_count.sh restartNRPE \"lids[101-102]\" /usr/local/nagios/libexec/nagiosxi  \"ls /etc\" \"pwd\" 
+
+
+"
+   exit $E_ARGERROR
+fi
+
+# Read in parameters
+
+file=$1
+shift
+nrpe=$1
+shift
+list=$1
+#echo "list=$list"
+shift
+path=$1
+shift
+addlCommand=$*
+date=`date +%F_%R:%N`
+
+for f in $file
+do
+#	if [ "$f" ?? ':' ]
+	if [ -z "${f##*:*}" ] 
+	then
+		remotehost=${f%:*}  
+		echo "SUMMARY : Remote Source = $remotehost "
+	fi
+	filename=`basename $f`  
+
+	echo "
+SUMMARY: Pushing Files to remote hosts
+"
+	for host in $list
+	do
+		if  [ "$remotehost" != "" ]  
+		then
+			ecko "scp $file /tmp/"$filename"_"$date"" "SCP" "Pulling $f from "$remotehost":"$path"/"$filename""
+			ecko "scp /tmp/"$filename"_"$date"  "$host":"$path"/"$filename"" "SCP" "Pushing $f to "$host":"$path"/"$filename""
+		else
+			ecko "scp $f  "$host":"$path"/"$filename"" "SCP" "Pushing $f to "$host":"$path"/"$filename""
+		fi 
+	done
+done
+
+# Delete temp file
+
+ecko "rm -fv /tmp/"$filename"_"$date"" "Clean Temp" "Cleaning /tmp/$filename"
+
+echo "
+SUMMARY: Executing Any Additional Commands on remote hosts
+"
+
+while [ ! -z "$1" ]
+do
+	for host in $list
+	do
+	cmd=$1
+	#echo "cmd=$cmd"
+	ecko "ssh $host `echo $cmd`" "Additional Command" "Executing `echo $cmd` on $host" 
+	done
+	shift
+done
+
+
+if [ "$nrpe" == "restartNRPE" ]
+then
+	echo "
+SUMMARY: Restarting NRPE on remote hosts
+"
+
+	for host in $list
+	do
+	ecko "ssh $host service nrpe restart" "NRPE" "Restart NRPE Service on $host"
+	done
+fi

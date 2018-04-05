@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# ecko - executes and prints command
+# ecko <command><test case number><test case description>
+#
+#  Usage: ecko <command> [test case number] [test case description] [neg]
+#  Where: <command> is the command executed by the current test
+#         <test case number> is the test case number associated with current test
+#         <test case description> is the test case description associated with current test
+#
+#  Revision History:
+#
+#        Steve Price 11-18-2010   Updated file header with Revision History section
+#                                 Updated file to accept all parameters that as useable by checkStatus to provide additional messaging
+#        Jeff Pavia  7-10-2011    Added quotes to check status calls so that spaces would work in description and test case parameters
+#
+
+# Check parameters
+E_ARGERROR=85
+MINPARAMS=1
+
+# Test for minimum number of parameters (in this case one, the <command>) required to execute the the procedure "checkStatus"
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "Usage: `basename $0`  <command> [test case number] [test case description] [neg]"  # basename will return "checkStatus"
+   exit $E_ARGERROR
+fi
+
+#**********************
+#  Set Varaibles
+#**********************
+
+tc=$2        # Test Case Number
+desc=$3      # Test Case Description
+
+
+#printf "Executing: $1"
+echo "
+"
+
+echo "Executing: $1"
+
+echo "
+"
+
+if [ ! -z $4 ]
+then
+	eval "$1"	
+	negcheckStatus "$?" "$tc" "$desc"
+else
+	eval "$1"
+	checkStatus "$?" "$tc" "$desc"
+fi
+
+
+

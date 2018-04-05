@@ -1,0 +1,94 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Missing host parameter"
+   echo "
+Usage: `basename $0`  host database
+
+`basename $0` - checks state of externals on specified hosts and products
+
+Example:
+     adm104:~> `basename $0` sdc-p-lidsdse03 edshtl
+
+Pre-requisites:
+"
+   exit $E_ARGERROR
+fi
+
+host=$1
+db=$2
+
+
+ecko "ping -c 1 $host" > /dev/null
+if [  $? -ne 0 ]
+then
+	ecko "sleep 30"
+	ecko "ping -c 1 $host" #> 2/dev/null
+	if [  $? -ne 0 ]
+	then
+		echo "Exiting:  $host cannot be pinged."
+		echo "Alerting SRE"
+               	string="CRITICAL $host not responding to ping from dseState running on adm104"
+               	ecko "ssh dns1 echo $string | mail -s CRITICAL_HOST_UNREACHABLE_$host jpavia@epnet.com"
+		exit 99	
+	fi
+fi
+
+# Issue ps command to find DSE Processes
+
+echo "Executing: ssh $host ps -ef | grep $db | grep -v family" 
+set `ssh $host ps -ef | grep $db | grep -v family`
+
+echo "Params: $* "
+
+# Command line arguments may not be in order.
+# Find the database command line option for epds2
+
+for arg in $*
+do
+	if [  -z "${arg##-p*}" ]
+	then
+		port=${arg#-p}
+	fi
+done 
+
+# Echo values to user for debugging, uncomment if needed
+
+#echo "
+#port=$port
+#"
+
+# Exit if cmd does not contain epds2 
+
+if [ ! -z "${cmd##*epds2}" ]  
+then
+	if [ !  -z "${cmd##*DDS7*}" ]
+	then
+		echo "Exiting-  matching process is not epds2"
+		#break 99
+		exit 99
+	fi
+
+fi
+
+wget -O ext.txt http://$host:$port/4 2>/dev/null
+ecko "grep -F 'UpToDate
+Updated
+N/A
+Initial Status' ext.txt" "extState" "$db DS on $host is UpToDate"
+es=$?
+if [ 0 != "$?" ]
+then
+	echo "SUMMARY: FAILED - externals not up to date, check db $db and host $host are correct"
+	grep 'Checked Status' ext.txt
+	rm -v ext.txt > /dev/null
+	exit 97
+fi 
+
+rm -v ext.txt > /dev/null
+
+exit $es

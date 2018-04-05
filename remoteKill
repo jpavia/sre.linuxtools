@@ -1,0 +1,63 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+	   echo "Usage: `basename $0`  <host1> <match1> 
+Usage:
+remoteKill -run ps on specified server and kills first pid which matches grep string
+
+PreRequisites: only runs on adm104, which must have ssh access to the specified server
+
+remoteKill <host1> <match1> 
+  
+Parameter            Value
+
+host          Hostname of Server to check
+match         String to match in ps output on remote host
+
+
+Example: remoteKill  lids101 conedsqd4 
+
+"
+   exit $E_ARGERROR
+fi
+
+# Read in parameters
+
+args=$*
+
+host=$1
+#echo "host=$host"
+shift
+match=$1
+#echo "match=$match"
+shift
+
+echo "
+SUMMARY: Executing PS Command on remotely on $host"
+
+	ssh $host ps -ef \| grep $match \| grep DDS7 \| grep -v grep #>/dev/null
+	if [  $? -ne 0 ]
+	then
+        	ping -c 1 $host > /dev/null
+        	if [  $? -ne 0 ]
+        	then
+                	echo "SUMMARY : Exiting:  $host cannot be pinged!!!!!"
+                	exit 99        
+        	fi
+	fi
+	
+	set `ssh $host ps -ef \| grep $match \| grep DDS7 \| grep -v grep` >/dev/null
+	pid=$2
+	if [ -z $pid ] 
+	then
+		echo "SUMMARY : No Match Found!!!!"
+		exit 98
+	fi
+#	echo "pid = $pid"
+	ecko "ssh $host kill -9 $pid" "remoteKill" "Attempt to kill pid $pid on $host" 
+

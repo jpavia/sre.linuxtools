@@ -1,0 +1,63 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+	   echo "Usage: `basename $0`  <host1 [host2] [host3] ...> <command> [addlCommand] [addlCommand] ...
+Usage:
+remoteExec - logs onto each specified server and executes any additional commands
+
+PreRequisites: only runs on adm104, which must have ssh access to the specified server
+
+remoteExec <host1 host2 host3> <command> [addlCommand] [addlCommand] ...
+  
+Parameter            Value
+
+host          Hostname(s) of Server to check, supports pdsh syntax i.e. \"rpss[1,2,102,4001],cds[1,2,101,4001]\"
+command       Command to be run on remote hosts
+addlCommand   Other commands to be run on remote hosts
+
+
+Example: remoteExec  \"lids[101-102]\" \"ls /etc\" \"pwd\" 
+
+"
+   exit $E_ARGERROR
+fi
+
+# Read in parameters
+
+list=$1
+#echo "list=$list"
+shift
+#command=$1
+#echo "command=$command"
+#shift
+addlCommand=$*
+
+echo "
+SUMMARY: Executing Commands on remote hosts $list : $cmd $addlCommand
+"
+#for host in $list
+#do
+#	ecko "ssh $host `echo $command`" 'RemoteExec' "Executing ssh $host `echo $command` on $host"
+#done
+#pdsh -w $list `echo $command`" 'RemoteExec' "Executing `echo $command` on hosts $list
+
+while [ ! -z "$1" ]
+do
+	for host in $list
+	do
+		cmd=$1
+		echo "cmd=$cmd"
+#		ecko "ssh $host $command" 'RemoteExec' "Executing ssh $host `echo $command` on $host"
+		ecko "ssh $host `echo $cmd`" "Additional Command" "Executing `echo $cmd` on $host" 
+	done
+#	pdsh -w $list `echo $cmd`
+#	checkStatus "$?" "RemoteExec"  "Executing `echo $cmd` on hosts $list"
+	shift
+done
+
+

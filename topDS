@@ -1,0 +1,104 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! any parameters"
+   echo "
+Usage: `basename $0`  host
+
+`basename $0` - checks for busiest DS on specified server 
+
+Example:
+     lids104:~> basename $0 sdc-p-lids03
+
+Pre-requisites:
+
+"
+   exit $E_ARGERROR
+fi
+
+host=$1
+shift
+unset
+
+# Issue ps command to find top CPU process
+
+set `ssh $host ps -ef --sort c | tail -n 1`
+
+# Read in ps command output
+
+user=$1
+shift
+pid=$1
+shift
+ppid=$1
+shift
+cpu=$1
+shift
+date=$1
+shift
+var6=$1
+shift
+var7=$1
+shift
+var8=$1
+shift
+var9=$1
+shift
+cmd=$1
+shift
+
+# Read in command line arguments
+
+cmd1=$1
+shift
+cmd2=$1
+shift
+cmd3=$1
+shift
+cmd4=$1
+
+# Echo values to user
+
+#echo "
+#user=$user
+#pid=$pid
+#ppid=$ppid
+#cpu=$cpu
+#date=$date
+#var6=$var6
+#var7=$var7
+#command=$cmd
+#commandlinearg1=$cmd1
+#commandlinearg2=$cmd2
+#commandlinearg3=$cmd3
+#commandlinearg4=$cmd4
+#
+#"
+# Exit if cmd does not contain epds2
+
+if [ ! -z "${cmd##*epds2}" ] 
+then
+	echo "Exiting-  top process not epds2, $cmd using "$cpu"% CPU on PID $pid "
+	echo "$user $pid $ppid $cpu $date $var6 $var7 $cmd $cmd1 $cmd2 $cmd3 $cmd4"
+	exit 99  	
+fi
+
+# Command line arguments may not be in order.
+# Find the database command line option
+
+for arg in $cmd1 $cmd2 $cmd3 $cmd4
+do
+	if [  -z "${arg##-f*}" ]
+	then
+		db=${arg#-f}
+		echo "Busiest database on $host is $db and is using "$cpu"% CPU on PID $pid
+Full Command was $cmd $cmd1 $cmd2 $cmd3 $cmd4" 
+	fi
+done 
+
+exit 0
+

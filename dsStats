@@ -1,0 +1,100 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=2
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Missing parameters"
+   echo "
+Usage: `basename $0`  <host> <db> [extension]
+
+host = lids server
+db = product, such as nlebk
+ext = DS Console page url suffix for Desired page, default is 4(DS Statistics page)
+
+`basename $0` - outputs requested DDS Console page on specified hosts 
+
+Example:
+     adm104:~> `basename $0` sdc-p-lids03 psyh 2
+
+Useful Extensions:
+
+0 - Base Page
+1 - Command Line 
+2 - System, Partition Info
+3 - Configuration
+4 - DS Statistics page
+401 - Pending Requests
+403 - Runtime Stats
+402 - Reset Runtime Stats
+
+"
+   exit $E_ARGERROR
+fi
+
+hosts=$1
+db=$2
+
+if [ ! -z $3 ]
+then
+	ext=$3
+else
+	ext=4
+fi
+
+
+for host in hosts
+do
+	ecko "ping -c 1 $host" > /dev/null
+	if [  $? -ne 0 ]
+	then
+		ecko "sleep 30"
+		ecko "ping -c 1 $host" #> 2/dev/null
+		if [  $? -ne 0 ]
+		then
+			echo "Exiting:  $host cannot be pinged."
+			exit 99	
+		fi
+	fi
+
+# Issue ps command to find DS Process
+
+	echo "Executing: ssh $host ps -ef | grep $db | grep -v family" 
+	set `ssh $host ps -ef | grep $db | grep -v family`
+
+#echo "Params: $* "
+
+# Command line arguments may not be in order.
+# Find the database command line option for port
+
+	for arg in $*
+	do
+		if [  -z "${arg##-p*}" ]
+		then
+			port=${arg#-p}
+		fi
+	done 
+
+# Echo values to user for debugging, uncomment if needed
+
+#	echo "
+#	port=$port
+#	"
+
+# Get requested stats page for specified server and db 
+
+	ecko "wget -O dsstats.txt http://$host:$port/$ext" 2>/dev/null
+
+	if [ 0 != "$?" ]
+	then
+		echo "SUMMARY: FAILED - dsStats Not Available, check db and host are correct and DS is started via topology"
+		exit 98
+	fi  
+
+
+# Output requested stats 
+
+cat dsstats.txt
+
+exit 

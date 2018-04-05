@@ -1,0 +1,61 @@
+#/bin/bash
+
+
+E_ARGERROR=85
+MINPARAMS=4
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+	   echo "Usage: `basename $0`  <domain> <host> <filer> <db1> [db2] . . . 
+Usage:
+dbCopy - copies files from SDC to master volume /build01
+
+PreRequisites: only runs on adm104, which must have ssh access to the specified server
+
+dbCopy <domain> <host> <source filer> <db1> [db2] . . .  
+  
+Parameter            Value
+
+host          Hostname of Server to check
+
+
+
+Example: dbCopy ir ae-prod-primary101 epdata412 ir00333a ir00335a
+
+"
+   exit $E_ARGERROR
+fi
+
+# Read in parameters
+
+domain=$1
+shift
+host=$1
+shift
+filer=$1
+shift
+echo "SUMMARY `date`"
+old=`date`
+
+for db in $* 
+do 
+	echo "$#" "$db"
+	domain=`ssh jpavia@ae-prod-lxb102 /usr/home/epdev/jpavia/bin/getSourceDomain prod-pcs102 $db`
+	path=build01
+	if [ $domain == "Production" ]
+	then 
+		domain=production
+		path=primary_build01
+	fi
+	if [ $domain == "production" ]
+	then 
+		domain=production
+		path=primary_build01
+	fi
+	echo $domain
+	ecko "ssh $host cp -vrp /"$filer"/"$domain"/"$db" /"$path"/"$domain"_pvol/ &" "dbCopy" "Copy of $db from $host"
+#	ecko "ssh $host /usr/home/epdev/pcsuser21/data/pcssandbox/pcsclient/bin/replicateVersion --domain $domain --host prod-pcs --port 28080 -l live --priority HIGH -g "$db" & " "Replicate" "Replicate  $db on $host" 
+	sleep 4
+done
+echo "SUMMARY FROM $old TO `date`"

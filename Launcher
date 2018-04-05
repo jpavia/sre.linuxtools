@@ -1,0 +1,118 @@
+#/bin/bash
+#
+#  Launcher- for scripts, saves a log of run to ~/bin/Results/log.scriptname.date
+#            also sends to /var/log/messages via logger
+#  Launcher <scriptname> <iterations>
+#
+#  
+
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "Usage: `basename $0` <scriptname> <iterations> "
+   exit $E_ARGERROR
+fi
+
+if test -z "$2" 
+then 
+   let count=1
+else 
+   let count=$2
+fi
+
+date=`date +%F_%R:%N` 
+echo "SU"M"MARY: Logging run of `basename $0` "$@"" > ~/bin/Results/"$1".$date.log
+echo "
+`basename $0`
+___________________________________________________________________________" >> ~/bin/Results/"$1".$date.log
+bn=`basename $0`
+#cat `which $bn` >> ~/bin/Results/"$1".$date.log
+echo "
+___________________________________________________________________________" >> ~/bin/Results/"$1".$date.log
+echo "
+`basename $1`
+___________________________________________________________________________" >> ~/bin/Results/"$1".$date.log
+bn1=`basename $1`
+cat `which $bn1` >> ~/bin/Results/"$1".$date.log
+echo "
+___________________________________________________________________________ " >> ~/bin/Results/"$1".$date.log
+printf "S"U"MMARY: Results available in ~/bin/Results/$1.$date.log
+
+"
+printf "S"U"MMARY: Results available in ~/bin/Results/$1.$date.log" >> ~/bin/Results/"$1".$date.log
+
+export RESULTS="SU"M"MARY: Results available in ~/bin/Results/"$1".$date.log"
+
+tail -f -n 0 ~/bin/Results/"$1".$date.log | logger & 2>/dev/null
+tale_logger="$!"
+tail -f -n 0 ~/bin/Results/"$1".$date.log  & 2>/dev/null
+tale="$!"
+
+# execute specified script
+ 
+nohup loop.sh $count $1 >> ~/bin/Results/"$1".$date.log 2>&1
+
+sleep 15
+
+# Kill tale sessions
+
+kill  "$tale" 2>/dev/null #>> ~/bin/Results/"$1".$date.log
+kill  "$tale_logger" 2>/dev/null #>> ~/bin/Results/"$1".$date.log
+tale=`expr $tale_logger - 1`
+kill "$tale"  2>/dev/null
+
+sleep 15
+
+# Output Results
+
+echo "
+RESULTS:
+"
+
+ecko "cat  ~/bin/Results/"$1".$date.log | grep "S"UM"MARY" > ~/bin/Results/"$1".$date.tmp.log  " 
+ecko "grep "S"UM"MARY" ~/bin/Results/"$1".$date.log" 
+echo "
+
+
+SUMMARY OF FAILURES:
+
+
+"  >> ~/bin/Results/"$1".$date.tmp.log
+
+echo "
+
+
+
+"
+
+# Filter out known bugs  with XXX
+
+ecko "grep "FAIL""E"D  ~/bin/Results/"$1".$date.log | grep -v XXX" 
+
+ecko "grep "FAIL""E"D  ~/bin/Results/"$1".$date.log | grep -v XXX >> ~/bin/Results/"$1".$date.tmp.log "
+
+ecko "grep "FAIL""E"D  ~/bin/Results/"$1".$date.tmp.log | grep -v XXX | mail -s "~/bin/Results/"$1".$date.tmp.log" jpavia@epnet.com"
+
+sleep 2
+
+echo "
+
+
+
+"
+
+ecko "cat ~/bin/Results/"$1".$date.tmp.log >> ~/bin/Results/"$1".$date.log "
+
+ecko "rm  ~/bin/Results/"$1".$date.tmp.log" 
+
+ecko "createCSVFiles.pl ~/bin/Results/"$1".$date.log $1 >> ~/bin/Results/"$1".$date.log"
+ecko "createCSVFilesLegacy.pl ~/bin/Results/"$1".$date.log >> ~/bin/Results/"$1".$date.log"
+
+exec echo "
+$RESULTS 
+"
+

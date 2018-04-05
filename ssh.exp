@@ -1,0 +1,34 @@
+#!/usr/bin/expect -f
+
+#  ssh.exp- facilitates password entry via ssh for remote execution
+#  
+#	ssh.exp <host> <executable> <username> <password> 
+#  
+
+# Check parameters
+set E_ARGERROR 85
+set MINPARAMS 4
+
+if { $argc < $MINPARAMS} {
+   puts "!ERROR! Not enough parameters"
+   puts "Usage: `basename $0` <host> <executable> <username> <password>"
+   exit $E_ARGERROR
+}
+
+set force_conservative 1 
+set timeout 3
+match_max 100000
+
+#puts [lindex $argv 1]
+
+set ex [exec which ssh]
+set cmd [exec which [lindex $argv 1]]
+puts "EXECUTING $cmd on [lindex $argv 0] as [lindex $argv 2]"
+spawn /bin/bash
+set string "$ex -o PreferredAuthentications=password -o \"StrictHostKeyChecking no\" [lindex $argv 2]@[lindex $argv 0] [lindex $argv 1]"
+send -- "$string\r"
+sleep 1
+expect -- "Password"
+send -- "[lindex $argv 3]\r"
+expect eof
+

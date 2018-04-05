@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# checkStatus
+
+#  Test the exit status to determine a pass or fail of a given test. An exit status value of  
+#  "0" is considered a pass and an exit status value of anything else is considered a failure.
+#
+#  Usage: checkStatus <exit status> <test case number> <test case description>
+#  Where: <exit status> is the exit status sent by the current test
+#         <test case number> is the test case number associated with current test
+#         <test case description> is the test case description associated with current test
+#
+# Revision History:
+#
+#        Steve Price 8-24-2010   Updated file header with Revision History section
+#                                Updated file with comments
+
+
+# Check parameters
+E_ARGERROR=85
+MINPARAMS=1
+
+# Test for minimum number of parameters (in this case one, the <exit staus>) required to execute the the procedure "checkStatus"
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "Usage: `basename $0`  <exit status> <test case number> <test case description>"  # basename will return "checkStatus"
+   exit $E_ARGERROR
+fi
+ 
+# Test for failing "checkStatus", an exit value, other than "0"
+if [ "$1" != "0" ] 
+then 
+	echo "
+SUMMARY: ENCOUNTERED FAILURE - EXITING!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!  $2 $3
+" 
+	echo "Exit Status: "$1""
+      if [ ! -z "$2" ]    # Test for null value passed in parameter $2 to expand error info to stdout 
+	then
+	   echo "
+SUMMARY: TEST CASE $2 :==> FAILED <==	 $3
+"
+      fi
+      exit $1
+fi
+
+# Test for passing "checkStatus", an exit value of "0"
+if [ ! -z "$2" ]        # Test for null value passed in parameter $2 to expand passing info to stdout
+then
+   echo "
+SUMMARY: TEST CASE $2 :==> PASSED <==	$3
+"
+fi
+exit $1
+
+

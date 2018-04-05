@@ -1,0 +1,45 @@
+#/bin/bash
+
+E_ARGERROR=85
+MINPARAMS=1
+
+if [ $# -lt "$MINPARAMS" ] 
+then 
+   echo "!ERROR!  Not enough parameters"
+   echo "Usage: `basename $0` <host1> [host2] [host3] ...
+Usage:
+checkHost - checks each Linux host and returns hostname, CPU's and Memory
+
+checkHost <host1> [host2] [host3] ...
+  
+Parameter            Value
+
+Host          Hostname of Server to check
+
+
+Example:
+     ese-builder@epdb3:~> checkHost  perflids103 
+
+
+"
+   exit $E_ARGERROR
+fi
+
+servers=$*
+for a in $servers
+do
+	set `host $a` >/dev/null
+	if [ ! -z  "$5" ]
+	then
+		hostname="$5"
+	else
+		hostname="$4"
+	fi
+	set `ssh $a free -mg | grep Mem` >/dev/null 
+	mem=$2
+	mem=""$mem"G" 
+	set `ssh $a cat /proc/cpuinfo | grep processor -wc` >/dev/null
+	cpu=$1
+	echo "$a,$hostname,$mem,$cpu"
+done
+
