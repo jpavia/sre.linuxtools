@@ -46,7 +46,7 @@ do
 
 #	echo $host $month $year $lastyear $tya
 	remoteExec $host "df -h" "ls -lh /var/log/ /tmp" "du -h --max-depth=1 /var/log/" "du -h --max-depth=1 /tmp"
-	pdsh -w $host "find /var/log/*.bz2 -maxdepth 1 -mtime +90 -type f  -delete -print"
+	pdsh -w $host "find /var/log/*.bz2 -maxdepth 1 -mtime +30 -type f  -delete -print"
 	checkStatus "$?" "logClean"  "Executing find /var/log/*.bz2 -maxdepth 1 -mtime +90 -type f  -delete -print on "$host""
  
 # Determine if host is one of the supported services
@@ -90,12 +90,33 @@ do
 		echo "Host $host is a $service Server"
 		remoteExec "$host" "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " 
 		remoteExec $host "find "$path"/logs/catalina.*.log -maxdepth 1 -mtime +90 -type f -delete -print"
-		ecko "pdsh -w $host find "$path"/logs/*.log.* -maxdepth 1 -mtime +90 -type f -delete -print"
+		ecko "pdsh -w $host find "$path"/logs/*.log.* -maxdepth 1 -mtime +30 -type f -delete -print"
 		ecko "pdsh -w $host find "$path"/logs/localhost_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print"  
 		ecko "pdsh -w $host find "$path"/logs/*.* -maxdepth 1 -mtime +365 -type f -delete -print"
 		remoteExec "$host" "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " 
-		pdsh -w $host "echo \"\" > /usr/java/tomcat/logs/catalina.out"
+		pdsh -w $host "echo \" \" > "$path"/logs/catalina.out"
 		remoteExec $host "du -h --max-depth=1  "$path"/logs/* | grep catalina.out"
+		unset service
+	fi
+	if  [ -z "${host##*graphite*}" ]
+        then
+		service="Graphite"
+		path="/opt/graphite/storage/log"
+		echo "Host $host is a $service Server"
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a stop"
+		ecko "sleep 30"
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" 2>/dev/null
+		remoteExec "$host" "ls -lh "$path"/webapp "$path"/carbon-cache/carbon-cache-*  " "du -h --max-depth=1 "$path" " 
+		pdsh -w $host "echo \" \" > $path/webapp/error.log"
+		pdsh -w $host "echo \" \" > $path/webapp/access.log"
+		pdsh -w $host "echo \" \" > $path/carbon-cache/carbon-cache-a/console.log"
+		pdsh -w $host "echo \" \" > $path/carbon-cache/carbon-cache-b/console.log"
+		ecko "ssh $host rm -vf $path/carbon-cache/carbon-cache-a/console.log.*"
+		ecko "ssh $host rm -vf $path/carbon-cache/carbon-cache-b/console.log.*"
+		remoteExec $host "du -h   "$path"/* "
+		remoteExec "$host" "ls -lh "$path"/webapp "$path"/carbon-cache/carbon-cache-*  " 
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" 2>/dev/nul
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a start"
 		unset service
 	fi
 	if  [ -z "${host##widgets*}" ]
@@ -108,7 +129,7 @@ do
 		remoteExec $host "./apache-backup-script" 
 		remoteExec $host "find /tmp -maxdepth 1 -mtime +1 -type f -user wwwrun -delete  -print" 
 		remoteExec $host "/usr/local/apache2/bin/apachectl start"
-		ecko "/usr/local/nagios/libexec/check_http -I $host -u '/test.html' –s 'OK' " "NAGIOS" "Verify if Nagios check is passing"
+		ecko "/usr/local/nagios/libexec/check_http -I $host -u '/test.html' -s 'OK' " "NAGIOS" "Verify if Nagios check is passing"
 		es=$?
 		if [ ! $es = 0  ]
 		then
@@ -139,9 +160,9 @@ do
 	then
 		echo "Host $host is a $service Server"
 		remoteExec $host "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " "du -h --max-depth=1  "$path"/logs/access/* " 
-		ecko "ssh $host \"find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +90 -type f  -delete -print\""
-		checkStatus "$?" "logClean"  "find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +90 -print -type f  -delete  -print on \"$host\""
-		remoteExec $host "find "$path"/logs/*_0* -maxdepth 1 -mtime +90 -type f  -delete -print" 2>/dev/null
+		ecko "ssh $host \"find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -type f  -delete -print\""
+		checkStatus "$?" "logClean"  "find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -print -type f  -delete  -print on \"$host\""
+		remoteExec $host "find "$path"/logs/*_0* -maxdepth 1 -mtime +30 -type f  -delete -print" 2>/dev/null
 		remoteExec $host "ls -lh "$path"/logs/access" 2>/dev/null
 		remoteExec $host "find \"$path\"/logs/access/__asadmin_access_log.* -maxdepth 1 -mtime +7 -type f  -delete -print" 2>/dev/null
    		remoteExec $host "find \"$path\"/logs/access/server_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print" 2>/dev/null
