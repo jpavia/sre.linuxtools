@@ -1,0 +1,115 @@
+#!/bin/bash
+
+
+#  checkGraphite - Monitors and starts carbon-cache instances on specified servers if necessary
+#
+#
+#	checkGraphite - [interval] [hosts] 
+#  
+
+# Check parameters
+
+
+E_ARGERROR=85
+MINPARAMS=0
+
+if [ "$#" -lt "$MINPARAMS"  ]
+then 
+   echo "!ERROR! Not enough parameters"
+   echo "checkGraphite - Monitors and starts carbon-cache instances on specified servers if necessary"
+   echo "Usage: `basename $0` [Optional retry Interval in Minutes] [ hosts ] "
+   exit $E_ARGERROR
+fi
+
+if [[ "$1" =~ "^[0-9]+$" ]]
+then 
+	interval=$1
+	shift
+fi
+
+# Initialize variables
+
+if [  -z "$interval" ]
+then
+ 	interval=5
+fi
+
+if [ "$#" = 0 ]
+then
+	hosts="graphite1 graphite2 graphite3 graphite4 graphite5"
+else
+	hosts=$*
+fi
+
+date
+#date=`date`
+#logdate=`date +%F_%R:%N`
+
+#pdsh -w "$hosts" ps -ef | grep carbon-cache
+#pdsh -w "$hosts" /opt/graphite/bin/carbon-cache.py --instance=b status
+#pdsh -w "$hosts" /opt/graphite/bin/carbon-cache.py  status
+
+
+for host in $hosts
+do
+	# Ensure host is reachable
+	ecko "ping -c 1 $host" > /dev/null
+
+	if [  $? -ne 0 ]
+	then
+		ecko "sleep 30"
+		ecko "ping -c 1 $host" #> /dev/null
+		if [  $? -ne 0 ] 
+		then
+			echo "SUMMARY: Exiting:  $host cannot be pinged."
+			echo "Alerting SRE"
+                	string="CRITICAL $host not responding to ping from checkGraphite running on adm104"
+                	ecko "ssh dns1 echo $string | mail -s CRITICAL_HOST_UNREACHABLE_$host jpavia@epnet.com"
+			#exit 99	
+		fi
+	fi
+
+# Check graphite instance b on host
+
+	ecko "pdsh -w $host ps -ef | grep carbon-cache"	
+	pdsh -w $host "/opt/graphite/bin/carbon-cache.py --instance=b status" | grep "not running"
+	if [ $? = 0 ]
+	then
+		# Start graphite on host
+		ecko	"pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+		sleep 5
+		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py start" "checkGraphite" "Start graphite instance a on $host"
+#		ecko "pdsh -w $host ps -ef | grep carbon-cache"#		
+ 	fi
+# Check graphite instance a on host
+	echo "
+"
+	pdsh -w  $host "/opt/graphite/bin/carbon-cache.py status" | grep "not running"
+	if [ $? = 0 ]
+	then
+		# Start graphite on host
+		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py start" "checkGraphite" "Start graphite instance a on $host"
+		sleep 5
+		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+		ecko "pdsh -w $host ps -ef | grep carbon-cache"
+ 	fi
+	
+done
+
+echo "
+"
+
+#pdsh -w "$hosts" "/opt/graphite/bin/carbon-cache.py --instance=b status"
+#pdsh -w "$hosts" "/opt/graphite/bin/carbon-cache.py  status"
+
+# Re-run at specified interval
+
+
+if [ ! -z "$interval" ]
+then
+	ecko "sleep "$interval"m"
+	ecko "checkGraphite $interval $hosts &" 
+#	ecko "checkGraphite &"
+fi
+
+exit $es
