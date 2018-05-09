@@ -29,14 +29,14 @@ fi
 
 # Initialize variables
 
-if [  -z "$interval" ]
-then
- 	interval=5
-fi
+#if [  -z "$interval" ]
+#then
+# 	interval=5
+#fi
 
 if [ "$#" = 0 ]
 then
-	hosts="graphite1 graphite2 graphite3 graphite4 graphite5"
+	hosts="graphite graphite1 graphite2 graphite3 graphite4 graphite5"
 else
 	hosts=$*
 fi
@@ -75,22 +75,27 @@ do
 	pdsh -w $host "/opt/graphite/bin/carbon-cache.py --instance=b status" | grep "not running"
 	if [ $? = 0 ]
 	then
+		if [ ! -z "${host##*graphite}"  ] 
+		then
 		# Start graphite on host
-		ecko	"pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
-		sleep 5
-		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py start" "checkGraphite" "Start graphite instance a on $host"
-#		ecko "pdsh -w $host ps -ef | grep carbon-cache"#		
+			ecko	"pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+			sleep 5
+			ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+#			ecko "pdsh -w $host ps -ef | grep carbon-cache"#	
+		else
+			echo "SUMMARY: Skipping instance B on server graphite"	
+		fi
  	fi
 # Check graphite instance a on host
 	echo "
 "
-	pdsh -w  $host "/opt/graphite/bin/carbon-cache.py status" | grep "not running"
+	pdsh -w  $host /opt/graphite/bin/carbon-cache.py status | grep "not running"
 	if [ $? = 0 ]
 	then
 		# Start graphite on host
 		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py start" "checkGraphite" "Start graphite instance a on $host"
 		sleep 5
-		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py  start" "checkGraphite" "Start graphite instance a on $host"
 		ecko "pdsh -w $host ps -ef | grep carbon-cache"
  	fi
 	
@@ -109,7 +114,6 @@ if [ ! -z "$interval" ]
 then
 	ecko "sleep "$interval"m"
 	ecko "checkGraphite $interval $hosts &" 
-#	ecko "checkGraphite &"
 fi
 
 exit $es
