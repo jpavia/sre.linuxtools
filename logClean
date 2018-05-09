@@ -66,6 +66,11 @@ do
 		service="RPSv1"
 		path="/usr/local/glassfish/domains/*"
 	fi
+	if [ -z "${host##*rpsm101}" ]
+        then
+		service="RPSv1"
+		path="/usr/local/glassfish/domains/*"
+	fi
 	if  [ -z "${host##*cds*}" ]
         then
 		service="CDS"
@@ -103,9 +108,9 @@ do
 		service="Graphite"
 		path="/opt/graphite/storage/log"
 		echo "Host $host is a $service Server"
-		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a stop"
-		ecko "sleep 30"
-		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" 2>/dev/null
+		#remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a stop" "/opt/graphite/bin/carbon-cache.py --instance=b stop"
+		#ecko "sleep 30"
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" "/opt/graphite/bin/carbon-cache.py --instance=b status" 2>/dev/null
 		remoteExec "$host" "ls -lh "$path"/webapp "$path"/carbon-cache/carbon-cache-*  " "du -h --max-depth=1 "$path" " 
 		pdsh -w $host "echo \" \" > $path/webapp/error.log"
 		pdsh -w $host "echo \" \" > $path/webapp/access.log"
@@ -115,8 +120,17 @@ do
 		ecko "ssh $host rm -vf $path/carbon-cache/carbon-cache-b/console.log.*"
 		remoteExec $host "du -h   "$path"/* "
 		remoteExec "$host" "ls -lh "$path"/webapp "$path"/carbon-cache/carbon-cache-*  " 
-		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" 2>/dev/nul
-		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a start"
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a status" "/opt/graphite/bin/carbon-cache.py --instance=b status" 2>/dev/null
+		remoteExec "$host" "/opt/graphite/bin/carbon-cache.py --instance=a start" 
+		if [ ! -z "${host##*graphite}"  ] 
+		then
+		# Start graphite instance B on hosts other than graphite			
+			ecko	"pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
+		else
+			echo "SUMMARY: Skipping instance B on server graphite as it should not exist"	
+		fi
+		ecko "sleep 30"
+		ecko "checkGraphite $host" "Check Graphite" "Check Graphite on $host" 
 		unset service
 	fi
 	if  [ -z "${host##widgets*}" ]
@@ -160,13 +174,13 @@ do
 	then
 		echo "Host $host is a $service Server"
 		remoteExec $host "ls -lh "$path"/logs " "du -h --max-depth=1 "$path"/logs " "du -h --max-depth=1  "$path"/logs/access/* " 
-		ecko "ssh $host \"find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -type f  -delete -print\""
-		checkStatus "$?" "logClean"  "find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -print -type f  -delete  -print on \"$host\""
+		ecko "ssh $host \"sudo find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -type f  -delete -print\""
+		checkStatus "$?" "logClean"  "sudo find \"$path\"/logs/server.log_* -maxdepth 1 -mtime +30 -print -type f  -delete  -print on \"$host\""
 		remoteExec $host "find "$path"/logs/*_0* -maxdepth 1 -mtime +30 -type f  -delete -print" 2>/dev/null
 		remoteExec $host "ls -lh "$path"/logs/access" 2>/dev/null
-		remoteExec $host "find \"$path\"/logs/access/__asadmin_access_log.* -maxdepth 1 -mtime +7 -type f  -delete -print" 2>/dev/null
-   		remoteExec $host "find \"$path\"/logs/access/server_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print" 2>/dev/null
-        	remoteExec $host "find "$path"/logs/* -maxdepth 1 -mtime +365 -type f  -delete -print " 2>/dev/null
+		remoteExec $host "find $path/logs/access/__asadmin_access_log.* -maxdepth 1 -mtime +7 -type f  -delete -print" 2>/dev/null
+   		remoteExec $host "find $path/logs/access/server_access_log.* -maxdepth 1 -mtime +7 -type f -delete -print" 2>/dev/null
+        	remoteExec $host "find $path/logs/* -maxdepth 1 -mtime +365 -type f  -delete -print " 2>/dev/null
 		remoteExec $host "ls -lh \"$path\"/logs/access" 2>/dev/null
 		remoteExec $host "du -h --max-depth=1  \"$path\"/logs/* | grep M " 2>/dev/null
 		remoteExec $host "du -h --max-depth=1  \"$path\"/logs/* | grep G " 2>/dev/null
