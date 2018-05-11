@@ -11,7 +11,7 @@
 
 
 E_ARGERROR=85
-MINPARAMS=0
+MINPARAMS=1
 
 if [ "$#" -lt "$MINPARAMS"  ]
 then 
@@ -79,7 +79,7 @@ do
 		then
 		# Start graphite on host
 			ecko	"pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
-			sleep 5
+			ecko "sleep 5"
 			ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py --instance=b start" "checkGraphite" "Start graphite instance b on $host"
 #			ecko "pdsh -w $host ps -ef | grep carbon-cache"#	
 		else
@@ -94,7 +94,7 @@ do
 	then
 		# Start graphite on host
 		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py start" "checkGraphite" "Start graphite instance a on $host"
-		sleep 5
+		ecko "sleep 5"
 		ecko "pdsh -w $host /opt/graphite/bin/carbon-cache.py  start" "checkGraphite" "Start graphite instance a on $host"
 		ecko "pdsh -w $host ps -ef | grep carbon-cache"
  	fi
