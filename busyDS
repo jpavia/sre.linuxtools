@@ -28,16 +28,17 @@ ecko "ping -c 1 $host" > /dev/null
 
 if [  $? -ne 0 ]
 then
-	ecko "sleep 30"
-	ecko "ping -c 1 $host" #> /dev/null
-	if [  $? -ne 0 ] 
-	then
-		echo "Exiting:  $host cannot be pinged."
-		echo "Alerting SRE"
+        ecko "sleep 30"
+        ecko "ping -c 1 $host" > /dev/null
+        if [  $? -ne 0 ] 
+        then
+                echo "Exiting:  $host cannot be pinged."
+                echo "Alerting SRE"
                 string="CRITICAL $host not responding to ping from busyDS running on adm104"
-                ecko "ssh dns1 echo $string | mail -s CRITICAL_HOST_UNREACHABLE_$host jpavia@epnet.com"
-		#exit 99	
-	fi
+                pdsh -w pdc-smtp2 "echo $string | mailx -s CRITICAL_HOST_UNREACHABLE_$host EIS.Shared.SiteReliability.SREs@ebsco.com" #jpavia@epnet.com j.bailey@ebsco.com
+                ecko "busyDS $host &"
+                exit 99
+        fi
 fi
 
 # Assign Attempt value
@@ -59,6 +60,8 @@ ssh $host pwd
 if [ $? != 0 ]
 then
         echo "Could not ssh to $host, exiting."
+        string="CRITICAL $host not responding to ssh from busyDS running on adm104"
+        ecko "pdsh -w pdc-smtp2.epnet.com  "echo $string | mailx -s CRITICAL_HOST_UNREACHABLE_$host EIS.Shared.SiteReliability.SREs@ebsco.com"" #jpavia@epnet.com j.bailey@ebsco.com
         ecko "sleep 30"
         ecko "busyDS $host &"
         exit 91
@@ -82,19 +85,19 @@ job=$*
  
 for arg in $*
 do
-	if [  -z "${arg##-f*}" ]
-	then
-		db=${arg#-f}
-#		echo "`date`: Busiest database on $host is $db using "$cpu"% CPU and PID $pid"
-	elif [ -z "${arg##--family*}" ]
-	then
-		db=${arg#--family=}
-	fi
-	if [  -z "${arg##DDS7*}" ]
-	then
-		cmd=${arg#DDS7}
-#		echo "`date`: Busiest database on $host is $db using "$cpu"% CPU and PID $pid" 
-	fi
+        if [  -z "${arg##-f*}" ]
+        then
+                db=${arg#-f}
+#               echo "`date`: Busiest database on $host is $db using "$cpu"% CPU and PID $pid"
+        elif [ -z "${arg##--family*}" ]
+        then
+                db=${arg#--family=}
+        fi
+        if [  -z "${arg##DDS7*}" ]
+        then
+                cmd=${arg#DDS7}
+#               echo "`date`: Busiest database on $host is $db using "$cpu"% CPU and PID $pid" 
+        fi
 done 
 
 # Read in ps command output
@@ -177,21 +180,21 @@ echo "command=$command"
 
 if [ ! -z "${job##*epds2*}" ]
 then
-	echo "Command could not be determined from string, $job , exiting."
-	ecko "sleep 30"
+        echo "Command could not be determined from string, $job , exiting."
+        ecko "sleep 30"
         ecko "busyDS $host &"
-	exit 0	
+        exit 0
 fi
 
 if [ ! -z "${cmd##*epds2}" ] 
 then
-	if [ !  -z "${cmd##*DDS7*}" ]
-	then
-		echo "Exiting-  top process is $cmd,  not epds2"
-		ecko "sleep 30"
-		ecko "busyDS $host &"
-		exit 0
-	fi
+        if [ !  -z "${cmd##*DDS7*}" ]
+        then
+                echo "Exiting-  top process is $cmd,  not epds2"
+                ecko "sleep 30"
+                ecko "busyDS $host &"
+                exit 0
+        fi
         echo "Exiting-  top process is $cmd,  not epds2"
         ecko "sleep 30"
         ecko "busyDS $host &"
@@ -205,45 +208,46 @@ echo "`date`: Busiest database on $host is $db using "$cpu"% CPU and PID $pid"
 
 if [ -z $prevdb ]
 then
-	if [[ $prevdb == $db ]]
-	then
-		echo "Exiting, busiest DS has changed on $host , was $prevdb and is now $db"
-		ecko "sleep 30"
-		ecko "busyDS $host &" 
-		exit 0
-	fi
+        if [[ $prevdb == $db ]]
+        then
+                echo "Exiting, busiest DS has changed on $host , was $prevdb and is now $db"
+                ecko "sleep 30"
+                ecko "busyDS $host &" 
+                exit 0
+        fi
 fi
 
 
 # If CPU is > 98% , retest.
 
 if [ $cpu -gt 98 ]
-then	
-	sleep 30
-	attempts=`expr $attempts + 1`
-	echo "attempts=$attempts"
-	if [[ "$attempts" -gt 20  ]]
-	then
-		echo "Alerting NOC"
-		string="CRITICAL $db DS has been hung on $host for 10 minutes, using $cpu % CPU on PID $pid. Please start additional $db DSs in effected Data Center before killing the hung DS. NOTE: this version will NOT KILL  DS automatically"
-		subj="_CRITICAL_HUNG_DS_$db"
-		subj="$host$subj"
-		ecko "ssh dns1 echo $string | mail -s $subj jpavia@epnet.com pmahajan@epnet.com sbarry@epnet.com tarchibald@epnet.com nnadig@epnet.com afassio@epnet.com bmitchell@epnet.com sdumpala@epnet.com ccooper@ebsco.com cbarone@ebsco.com j.bailey@ebsco.com " #EIS.Tech.SREs@ebsco.com " #NagiosAlerts@ebsco.com EIS.Tech.SREs@ebsco.com  jpavia@epnet.com
+then
+        sleep 30
+        attempts=`expr $attempts + 1`
+        echo "attempts=$attempts"
+        if [[ "$attempts" -gt 20  ]]
+        then
+                echo "Alerting NOC"
+                string="CRITICAL $db DS has been hung on $host for 10 minutes, using $cpu % CPU on PID $pid. Please start additional $db DSs in effected Data Center before killing the hung DS. NOTE: this version will NOT KILL  DS automatically"
+                subj="_CRITICAL_HUNG_DS_$db"
+                subj="$host$subj"
+                #ecko "ssh dns1 echo $string | mail -s $subj jpavia@epnet.com pmahajan@epnet.com sbarry@epnet.com tarchibald@epnet.com nnadig@epnet.com afassio@epnet.com bmitchell@epnet.com sdumpala@epnet.com ccooper@ebsco.com cbarone@ebsco.com j.bailey@ebsco.com " #EIS.Tech.SREs@ebsco.com " #NagiosAlerts@ebsco.com EIS.Tech.SREs@ebsco.com  jpavia@epnet.com apavia@ebsco.com
+                ecko "pdsh pdc-smtp2 "echo $string | mailx -s $subj EIS.Shared.SiteReliability.SREs@ebsco.com""
 
 # Kill Hung DS - next two lines often commented out to avoid false positives and looping conditions, but sometimes useful for extremely long duration anomalies
 
-#		ecko "ssh $host kill -9 $pid"
-#		sleep 100
-		attempts=0
-		ecko "busyDS $host &"
-		exit 100	
-	fi
-	ecko "busyDS $host $attempts $db" 
+                #ecko "ssh $host kill -9 $pid"
+                #sleep 100
+                attempts=0
+                ecko "busyDS $host &"
+                exit 100
+        fi
+        ecko "busyDS $host $attempts $db" 
 else
-	# Exit if CPU less than 100
-	echo "Exiting, CPU less than 98%"
-	ecko "sleep 30" 
-	ecko "busyDS $host &"
-	exit 0
+        # Exit if CPU less than 100
+        echo "Exiting, CPU less than 98%"
+        ecko "sleep 30" 
+        ecko "busyDS $host &"
+        exit 0
 fi
 exit 0
