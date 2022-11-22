@@ -10,7 +10,6 @@
 #
 #  Revision History:
 #
-#        Steve Price 11-18-2010   Updated file header with Revision History section
 #                                 Updated file to accept all parameters that as useable by checkStatus to provide additional messaging
 #        Jeff Pavia  7-10-2011    Added quotes to check status calls so that spaces would work in description and test case parameters
 #
